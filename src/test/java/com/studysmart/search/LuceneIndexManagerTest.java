@@ -70,6 +70,30 @@ class LuceneIndexManagerTest {
     }
 
     @Test
+    void matchesAcrossWordEndingsAndIgnoresQuestionGrammar() throws Exception {
+        indexManager.indexChunks("project-1", List.of(
+                chunk("c1", "d1", "A cell produces energy by respiration."),
+                chunk("c2", "d2", "Napoleon seized power in a coup in 1799.")));
+
+        // "cells" must find "cell"; the stopwords in the question must not decide the ranking.
+        List<SearchHit> hits = indexManager.search("project-1", "how do cells produce energy?", 10);
+
+        assertThat(hits).extracting(SearchHit::chunkId).containsExactly("c1");
+    }
+
+    @Test
+    void reportsAnIndexWrittenByAnOlderAnalyzerAsStale() throws Exception {
+        indexManager.indexChunks("project-1", List.of(chunk("c1", "d1", "some content")));
+        assertThat(indexManager.isStale("project-1")).isFalse();
+
+        // Simulate an index built before the analyzer changed.
+        java.nio.file.Files.writeString(tempDir.resolve("lucene").resolve("project-1").resolve(".analyzer-version"), "older");
+        assertThat(indexManager.isStale("project-1")).isTrue();
+
+        assertThat(indexManager.isStale("project-never-indexed")).isFalse();
+    }
+
+    @Test
     void emptyQueryReturnsNoHits() throws Exception {
         indexManager.indexChunks("project-1", List.of(chunk("c1", "d1", "some content")));
         assertThat(indexManager.search("project-1", "   ", 10)).isEmpty();

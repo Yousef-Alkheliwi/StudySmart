@@ -38,6 +38,23 @@ class SentenceSplitterTest {
     }
 
     @Test
+    void keepsShortFactualSentences() {
+        // Four words is a real fact; the old character-length rule threw these away.
+        assertThat(SentenceSplitter.split("Mitosis has four phases. ATP stores chemical energy."))
+                .containsExactly("Mitosis has four phases.", "ATP stores chemical energy.");
+    }
+
+    @Test
+    void recognisesFragmentsLeftByAChunkBoundary() {
+        assertThat(SentenceSplitter.startsLikeSentence("that speed up biochemical reactions.")).isFalse();
+        assertThat(SentenceSplitter.startsLikeSentence("Enzymes speed up reactions.")).isTrue();
+        assertThat(SentenceSplitter.startsLikeSentence("1789 was the year it began.")).isTrue();
+        assertThat(SentenceSplitter.endsLikeSentence("happen inside the mito")).isFalse();
+        assertThat(SentenceSplitter.endsLikeSentence("They happen inside the mitochondria.")).isTrue();
+        assertThat(SentenceSplitter.endsLikeSentence("Is that right?")).isTrue();
+    }
+
+    @Test
     void blankInputYieldsNothing() {
         assertThat(SentenceSplitter.split("  \n ")).isEmpty();
         assertThat(SentenceSplitter.split(null)).isEmpty();

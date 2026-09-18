@@ -14,6 +14,7 @@ import com.studysmart.repository.DocumentRepository;
 import com.studysmart.repository.SummaryRepository;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -57,7 +58,7 @@ public class SummaryService {
         String documentNames = sources.stream().map(s -> s.document().filename()).distinct()
                 .collect(Collectors.joining(", "));
 
-        AnswerResult result = new ExtractiveSummarizer(embeddings.currentOrHashing()).summarize(sources);
+        AnswerResult result = new ExtractiveSummarizer(embeddings.awaitReady(Duration.ofSeconds(8))).summarize(sources);
         return summaryRepository.save(projectId, "Summary of " + documentNames, documentIds, result.text(), result.citations());
     }
 }

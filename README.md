@@ -72,15 +72,16 @@ and ask it something. No API key, no account, nothing to sign up for.
 |---|---|
 | Text extraction | Apache PDFBox, page-by-page, so every chunk keeps its page number |
 | Chunking | A word-count sliding window (`Chunker`) that snaps its cut points to paragraph breaks, with configurable overlap |
-| Keyword search | Apache Lucene, BM25, one physical index per project |
+| Keyword search | Apache Lucene, BM25, one physical index per project; English analysis (stemming + stopword removal) so "cells" matches "cell" and a question's grammar doesn't outvote its subject |
 | Semantic search | `all-MiniLM-L6-v2` sentence embeddings run locally via ONNX Runtime (Deep Java Library); vectors stored in SQLite, exact cosine scan per project (`VectorIndex`) |
 | Ranking | Reciprocal Rank Fusion of the two result lists (`RankFusion`) |
-| Answers | `ExtractiveAnswerEngine`: embeds candidate sentences, picks the closest to the question, removes near-duplicates, cites each |
+| Sentence prep | `SentenceCorpus`: discards the half-sentences chunk boundaries leave behind, and links each sentence to the one before it so "It occurs in three stages..." keeps its subject |
+| Answers | `ExtractiveAnswerEngine`: embeds candidate sentences, leads with the closest to the question, adds only support that stays near its score, cites each |
 | Summaries | `ExtractiveSummarizer`: Maximal Marginal Relevance against the material's centroid vector |
 | Quizzes | `ClozeQuizGenerator`: TF-IDF term salience, definition-shaped sentence preference, distractors from other documents' key terms, round-robin across documents |
 | Grading | `LexicalGrader`: normalization, containment, token-overlap threshold |
 | Persistence | SQLite via plain JDBC (`JdbcTemplate`), explicit schema, foreign keys, cascading deletes |
-| Async processing | Ingestion, embedding and a startup vector backfill run on a dedicated executor |
+| Async processing | Ingestion, embedding, a vector backfill and a keyword-index rebuild run on a dedicated executor at startup |
 
 If a hashing-based fallback embedding ever appears in the status footer
 ("hashing"), it means the learned model could not be loaded (for instance,
@@ -179,14 +180,39 @@ POST   /api/projects/{id}/summaries                  summarize documents
 
 The suite exercises the actual algorithms, not just wiring: chunking
 (sizes, paragraph snapping, exact overlap, offset round-tripping), a real
-temp-directory Lucene index (ranking, project isolation, deletion), the
-hashing embedding (determinism, unit length, relevance ordering), rank
-fusion (agreement beats a single top rank; raw scores don't leak), the
-vector index (ordering, cache invalidation), sentence splitting
-(abbreviations, initials, hard-wrapped lines), the full on-device engine
-(extractive answers with citations, de-duplication across overlapping
-chunks, honest "not found", MMR summaries, cloze quizzes spread across
-documents, lexical grading), and the HTTP layer via `MockMvc`.
+temp-directory Lucene index (ranking, stemming, project isolation,
+deletion, stale-index detection), the hashing embedding (determinism, unit
+length, relevance ordering), rank fusion (agreement beats a single top
+rank; raw scores don't leak), the vector index (ordering, cache
+invalidation), sentence splitting and corpus building (abbreviations,
+initials, hard-wrapped lines, chunk-boundary fragments, bullet notes with
+no full stops, antecedent linking), the full on-device engine (answers
+that lead with the best sentence and cite it, de-duplication across
+overlapping chunks, honest "not found", MMR summaries, cloze quizzes
+spread across documents, lexical grading), and the HTTP layer via
+`MockMvc`.
+
+### Measuring answer quality
+
+Engine changes are measured, not guessed at. `RetrievalEval` scores keyword
+retrieval on every build, and `AnswerQualityEval` scores end-to-end answers
+against the real embedding model:
+
+```bash
+./mvnw test -Dstudysmart.eval=true -Dtest=AnswerQualityEval
+```
+
+Both run over a small multi-subject corpus in `EvalCorpus` whose questions
+are deliberately paraphrased, so a hit means the engine understood the
+question rather than matched its words. Current scores:
+
+| Metric | Score |
+|---|---|
+| Answer contains the right fact first | 14/15 |
+| Answer contains the right fact at all | 15/15 |
+| Out-of-scope questions correctly declined | 2/2 |
+| Sentences per answer (lower is tighter) | 1.7 |
+| Keyword retrieval, answer chunk ranked first | 14/15 |
 
 ## Project layout
 
@@ -197,7 +223,7 @@ src/main/java/com/studysmart/
 ├── ingest/       PDF/text extraction, chunking, async ingestion, vector backfill
 ├── embedding/    the EmbeddingModel abstraction: ONNX MiniLM, hashing fallback
 ├── search/       Lucene BM25, in-memory vector index, rank fusion, hybrid search
-├── local/        the engine: extractive answers, summaries, cloze quizzes, grading
+├── local/        the engine: sentence prep, extractive answers, summaries, cloze quizzes, grading
 ├── service/      use cases: projects, documents, chat, quizzes, summaries, grading
 ├── web/          REST controllers, DTOs, error handling
 └── config/       Spring config, typed properties

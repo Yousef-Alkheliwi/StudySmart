@@ -3,7 +3,7 @@ package com.studysmart.search;
 import com.studysmart.config.StudySmartProperties;
 import com.studysmart.domain.Chunk;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
@@ -52,6 +52,25 @@ public class LuceneIndexManager {
     private static final String FIELD_DOCUMENT_ID = "documentId";
     private static final String FIELD_CONTENT = "content";
 
+    /**
+     * Bumped whenever the text analysis changes. An index written by an
+     * older version has its terms stored differently (unstemmed, stopwords
+     * kept), so queries built the new way would silently under-match it -
+     * {@link #isStale} reports that and the index is rebuilt from the chunks
+     * in SQLite rather than quietly returning worse results.
+     */
+    static final String ANALYZER_VERSION = "english-v1";
+    private static final String VERSION_FILE = ".analyzer-version";
+
+    /**
+     * English analysis: folds case, drops stopwords ("where", "does",
+     * "the") so a question's grammar doesn't outvote its subject, and stems
+     * ("cells" matches "cell", "produces" matches "producing").
+     */
+    static Analyzer analyzer() {
+        return new EnglishAnalyzer();
+    }
+
     private final StudySmartProperties properties;
     private final Map<String, Object> projectLocks = new ConcurrentHashMap<>();
 
@@ -74,7 +93,7 @@ public class LuceneIndexManager {
         synchronized (lockFor(projectId)) {
             Path path = indexPath(projectId);
             Files.createDirectories(path);
-            Analyzer analyzer = new StandardAnalyzer();
+            Analyzer analyzer = analyzer();
             try (FSDirectory dir = FSDirectory.open(path);
                  IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(analyzer))) {
                 for (Chunk chunk : chunks) {
@@ -87,6 +106,21 @@ public class LuceneIndexManager {
                 }
                 writer.commit();
             }
+            Files.writeString(path.resolve(VERSION_FILE), ANALYZER_VERSION);
+        }
+    }
+
+    /** True when this project has an index that an older analyzer wrote, so it must be rebuilt before it can be trusted. */
+    public boolean isStale(String projectId) {
+        Path path = indexPath(projectId);
+        if (!Files.isDirectory(path) || !hasIndexFiles(path)) {
+            return false;
+        }
+        try {
+            Path marker = path.resolve(VERSION_FILE);
+            return !Files.exists(marker) || !ANALYZER_VERSION.equals(Files.readString(marker).trim());
+        } catch (IOException e) {
+            return true;
         }
     }
 
@@ -96,7 +130,7 @@ public class LuceneIndexManager {
             if (!Files.isDirectory(path)) {
                 return;
             }
-            Analyzer analyzer = new StandardAnalyzer();
+            Analyzer analyzer = analyzer();
             try (FSDirectory dir = FSDirectory.open(path);
                  IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(analyzer))) {
                 writer.deleteDocuments(new Term(FIELD_DOCUMENT_ID, documentId));
@@ -130,12 +164,11 @@ public class LuceneIndexManager {
 
     public List<SearchHit> search(String projectId, String queryText, int topK) throws IOException {
         Path path = indexPath(projectId);
-        File dirFile = path.toFile();
-        if (!dirFile.isDirectory() || dirFile.listFiles() == null || dirFile.listFiles().length == 0) {
+        if (!hasIndexFiles(path)) {
             return List.of();
         }
 
-        Analyzer analyzer = new StandardAnalyzer();
+        Analyzer analyzer = analyzer();
         try (FSDirectory dir = FSDirectory.open(path);
              DirectoryReader reader = DirectoryReader.open(dir)) {
             IndexSearcher searcher = new IndexSearcher(reader);
@@ -154,6 +187,20 @@ public class LuceneIndexManager {
             }
             return hits;
         }
+    }
+
+    /** An index directory with actual segment files in it, not just our version marker. */
+    private static boolean hasIndexFiles(Path path) {
+        File[] files = path.toFile().listFiles();
+        if (files == null) {
+            return false;
+        }
+        for (File f : files) {
+            if (!f.getName().equals(VERSION_FILE)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Query buildQuery(String queryText, Analyzer analyzer) {

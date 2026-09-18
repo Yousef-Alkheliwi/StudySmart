@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +24,9 @@ import java.util.Optional;
  */
 @Service
 public class SearchService {
+
+    /** Matches the answering path: a search issued while the model loads waits briefly rather than going keyword-only. */
+    private static final Duration MODEL_WAIT = Duration.ofSeconds(8);
 
     private final LuceneIndexManager indexManager;
     private final VectorIndex vectorIndex;
@@ -48,10 +52,11 @@ public class SearchService {
             throw new UncheckedIOException("Keyword search failed for project " + projectId, e);
         }
 
-        Optional<EmbeddingModel> model = embeddings.current();
-        List<SearchHit> semantic = model
-                .map(m -> vectorIndex.search(projectId, m, query, candidates))
-                .orElse(List.of());
+        // Wait briefly at startup: searching with the stopgap model would find
+        // none of the vectors the real model wrote, silently leaving only BM25.
+        List<SearchHit> semantic = embeddings.current().isEmpty()
+                ? List.of()
+                : vectorIndex.search(projectId, embeddings.awaitReady(MODEL_WAIT), query, candidates);
 
         List<SearchHit> fused = RankFusion.fuse(topK, keyword, semantic);
         if (fused.isEmpty()) {

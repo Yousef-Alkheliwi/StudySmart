@@ -17,6 +17,7 @@ import com.studysmart.repository.DocumentRepository;
 import com.studysmart.search.SearchService;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -29,6 +30,9 @@ import java.util.stream.Collectors;
  */
 @Service
 public class ChatService {
+
+    /** How long a question waits for the embedding model at startup before falling back to the lexical one. */
+    private static final Duration MODEL_WAIT = Duration.ofSeconds(8);
 
     private final SearchService searchService;
     private final EmbeddingModelProvider embeddings;
@@ -63,7 +67,7 @@ public class ChatService {
             return reply;
         }
 
-        AnswerResult result = new ExtractiveAnswerEngine(embeddings.currentOrHashing()).answer(question, toSources(hits));
+        AnswerResult result = new ExtractiveAnswerEngine(embeddings.awaitReady(MODEL_WAIT)).answer(question, toSources(hits));
         ChatMessage reply = messageRepository.save(sessionId, MessageRole.ASSISTANT, result.text(), result.citations());
         sessionRepository.touch(sessionId);
         return reply;

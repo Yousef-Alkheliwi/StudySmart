@@ -6,9 +6,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Owns the process-wide embedding model and decides which one runs.
@@ -86,6 +89,26 @@ public class EmbeddingModelProvider {
     public Optional<EmbeddingModel> ready() {
         warmup.join();
         return current();
+    }
+
+    /**
+     * Gives the real model a short chance to finish loading before serving a
+     * request. Without this, a question asked in the seconds after startup is
+     * answered by the lexical stopgap and quietly comes back worse. Once the
+     * load has settled - either way - this returns immediately, so a model
+     * that can never load costs one wait, not one per request.
+     */
+    public EmbeddingModel awaitReady(Duration timeout) {
+        try {
+            warmup.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            log.debug("Embedding model still loading after {}; using the lexical fallback for this request", timeout);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            // The load failed; loadLocalModel has already logged and set the status.
+        }
+        return currentOrHashing();
     }
 
     public String status() {

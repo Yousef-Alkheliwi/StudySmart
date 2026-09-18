@@ -109,6 +109,48 @@ class LocalEngineTest {
     }
 
     @Test
+    void leadsWithTheBestSentenceThenFollowsTheDocumentOrder() {
+        List<GroundedSource> sources = List.of(source("d1", "bio.pdf", 1, BIOLOGY));
+
+        AnswerResult result = new ExtractiveAnswerEngine(model).answer("where does glycolysis happen?", sources);
+
+        // Each bullet reads "- <sentence> [n]"; strip the citation marker to compare with the citation itself.
+        List<String> bullets = result.text().lines()
+                .filter(l -> l.startsWith("- "))
+                .map(l -> l.substring(2).replaceAll(" \\[\\d+]$", ""))
+                .toList();
+        assertThat(bullets.get(0)).contains("Glycolysis takes place in the cytoplasm");
+        assertThat(result.citations()).hasSize(bullets.size());
+        // Citation numbering follows what is printed, so [1] is the first bullet.
+        assertThat(result.citations().get(0).quotedText()).isEqualTo(bullets.get(0));
+    }
+
+    @Test
+    void doesNotPadAnAnswerWithLooselyRelatedSentences() {
+        List<GroundedSource> sources = List.of(
+                source("d1", "bio.pdf", 1, BIOLOGY),
+                source("d2", "history.pdf", 2, HISTORY));
+
+        AnswerResult result = new ExtractiveAnswerEngine(model).answer("where does glycolysis happen?", sources);
+
+        long bullets = result.text().lines().filter(l -> l.startsWith("- ")).count();
+        assertThat(bullets).isBetween(1L, 4L);
+        assertThat(result.text()).doesNotContain("Robespierre");
+    }
+
+    @Test
+    void neverAnswersWithASentenceFragmentLeftByChunking() {
+        GroundedSource cut = source("d1", "bio.pdf", 1,
+                "that speed up biochemical reactions by lowering the activation energy. "
+                        + "Enzymes are proteins that speed up biochemical reactions by lowering the activation energy.");
+
+        AnswerResult result = new ExtractiveAnswerEngine(model).answer("what speeds up reactions?", List.of(cut));
+
+        assertThat(result.text().lines().filter(l -> l.startsWith("- ")).toList())
+                .allSatisfy(line -> assertThat(line).doesNotStartWith("- that speed up"));
+    }
+
+    @Test
     void lexicalGraderAcceptsParaphraseAndRejectsWrongTerms() {
         assertThat(LexicalGrader.grade("the mitochondria", "Mitochondria").correct()).isTrue();
         assertThat(LexicalGrader.grade("oxidative phosphorylation", "it is oxidative phosphorylation in the cell").correct()).isTrue();

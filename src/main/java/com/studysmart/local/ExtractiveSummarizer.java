@@ -37,7 +37,7 @@ public final class ExtractiveSummarizer {
             return new AnswerResult("The selected documents contain no readable sentences to summarize.", List.of());
         }
 
-        List<float[]> vectors = model.embedAll(sentences.stream().map(SourceSentence::text).toList());
+        List<float[]> vectors = model.embedAll(sentences.stream().map(SourceSentence::searchableText).toList());
         float[] centroid = Vectors.mean(vectors);
         int target = Math.max(4, Math.min(12, sentences.size() / 8));
 
@@ -79,7 +79,7 @@ public final class ExtractiveSummarizer {
             text.append("## ").append(entry.getKey()).append("\n");
             for (SourceSentence s : entry.getValue()) {
                 int order = citations.size();
-                text.append("- ").append(s.text()).append(" [").append(order + 1).append("]\n");
+                text.append("- ").append(s.displayText()).append(" [").append(order + 1).append("]\n");
                 citations.add(s.toCitation(order));
             }
             text.append("\n");
