@@ -55,8 +55,11 @@ and ask it something. No API key, no account, nothing to sign up for.
   page and quoted sentence. The engine returns the most relevant sentences
   verbatim, so it cannot invent a fact.
 - **Quizzes and flashcards** - multiple choice, short answer and cloze
-  flashcards, each tagged with its source, built by blanking out the most
-  salient term in definition-like sentences (TF-IDF).
+  flashcards, each tagged with its source, built by blanking out the key
+  term in definition-like sentences. Course admin, chapter introductions
+  and reading lists are filtered out, so you are tested on the subject
+  rather than on your lecturer's office hours. Answers stay hidden behind
+  a show-answer button.
 - **Self-grading short answers**, checked lexically against the reference.
 - **Summaries** of selected documents, grouped by document with a citation
   per sentence.
@@ -78,7 +81,8 @@ and ask it something. No API key, no account, nothing to sign up for.
 | Sentence prep | `SentenceCorpus`: discards the half-sentences chunk boundaries leave behind, and links each sentence to the one before it so "It occurs in three stages..." keeps its subject |
 | Answers | `ExtractiveAnswerEngine`: embeds candidate sentences, leads with the closest to the question, adds only support that stays near its score, cites each |
 | Summaries | `ExtractiveSummarizer`: Maximal Marginal Relevance against the material's centroid vector |
-| Quizzes | `ClozeQuizGenerator`: TF-IDF term salience, definition-shaped sentence preference, distractors from other documents' key terms, round-robin across documents |
+| Study-material filter | `StudyContentFilter`: keeps quizzes and summaries off the instructor's name, office hours, "in this chapter we will..." and other course scaffolding that happens to share the file |
+| Quizzes | `ClozeQuizGenerator`: TF-IDF term salience biased towards the concept being defined rather than the verb or an adjective, definition-shaped sentence preference, distractors from other documents' key terms, round-robin across documents |
 | Grading | `LexicalGrader`: normalization, containment, token-overlap threshold |
 | Persistence | SQLite via plain JDBC (`JdbcTemplate`), explicit schema, foreign keys, cascading deletes |
 | Async processing | Ingestion, embedding, a vector backfill and a keyword-index rebuild run on a dedicated executor at startup |

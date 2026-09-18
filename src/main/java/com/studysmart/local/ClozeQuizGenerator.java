@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -38,11 +39,29 @@ public final class ClozeQuizGenerator {
     private static final int MAX_CANDIDATES = 800;
     private static final int DISTRACTORS = 3;
 
+    /**
+     * Words that are statistically rare enough to look salient but make
+     * hollow questions - "Cellular respiration is the _____ by which..."
+     * tests nothing. Kept separate from the general stopword list, which
+     * exists to clean up matching rather than to judge question quality.
+     */
+    private static final Set<String> WEAK_BLANKS = Set.of(
+            "process", "processes", "important", "various", "different", "number", "general", "certain",
+            "common", "particular", "specific", "significant", "figure", "table", "chapter", "section",
+            "introduction", "conclusion", "summary", "overview", "note", "notes", "part", "parts",
+            "point", "points", "result", "results", "type", "types", "form", "forms", "case", "cases",
+            "thing", "things", "term", "terms", "level", "levels", "amount", "order", "group", "groups",
+            "area", "areas", "information", "material", "materials", "example", "examples", "study", "studies");
+
+    /** Endings that usually mark a describing word rather than a thing. */
+    private static final List<String> ADJECTIVE_SUFFIXES = List.of(
+            "al", "ar", "ic", "ive", "ous", "ful", "less", "able", "ible", "ed", "ing");
+
     private ClozeQuizGenerator() {
     }
 
     public static List<QuizQuestion> generate(List<GroundedSource> sources, int count, List<QuestionType> types) {
-        List<SourceSentence> sentences = SentenceCorpus.from(sources, MAX_CANDIDATES);
+        List<SourceSentence> sentences = testableContent(SentenceCorpus.from(sources, MAX_CANDIDATES));
         if (sentences.isEmpty()) {
             return List.of();
         }
@@ -87,16 +106,31 @@ public final class ClozeQuizGenerator {
         return questions;
     }
 
+    /**
+     * Drops the instructor's name, office hours and "in this chapter we
+     * will..." - a quiz should test the subject, not the paperwork around
+     * it. If a document is nothing but paperwork, everything is kept rather
+     * than returning no quiz at all.
+     */
+    private static List<SourceSentence> testableContent(List<SourceSentence> sentences) {
+        List<SourceSentence> content = sentences.stream()
+                .filter(s -> StudyContentFilter.isTestableContent(s.text()))
+                .toList();
+        return content.isEmpty() ? sentences : content;
+    }
+
     private static Candidate bestTerm(SourceSentence sentence, List<String> tokens, Map<String, Integer> df, int total) {
         Map<String, Integer> tf = new HashMap<>();
-        for (String t : tokens) {
-            tf.merge(t, 1, Integer::sum);
+        Map<String, Integer> firstPosition = new HashMap<>();
+        for (int i = 0; i < tokens.size(); i++) {
+            tf.merge(tokens.get(i), 1, Integer::sum);
+            firstPosition.putIfAbsent(tokens.get(i), i);
         }
         String bestTerm = null;
         double bestScore = 0;
         for (Map.Entry<String, Integer> e : tf.entrySet()) {
             String term = e.getKey();
-            if (Stopwords.isStopword(term)) {
+            if (Stopwords.isStopword(term) || WEAK_BLANKS.contains(term)) {
                 continue;
             }
             int frequency = df.getOrDefault(term, 1);
@@ -105,6 +139,9 @@ public final class ClozeQuizGenerator {
                 continue;
             }
             double score = e.getValue() * Math.log((double) total / frequency) * (term.length() >= 6 ? 1.2 : 1.0);
+            score *= subjectWeight(firstPosition.get(term), tokens.size());
+            score *= properNounWeight(sentence.text(), term);
+            score *= adjectivePenalty(term);
             if (score > bestScore) {
                 bestScore = score;
                 bestTerm = term;
@@ -115,6 +152,54 @@ public final class ClozeQuizGenerator {
         }
         double sentenceScore = bestScore + (DEFINITION.matcher(sentence.text()).find() ? 2.0 : 0.0);
         return new Candidate(sentence, originalCasing(sentence.text(), bestTerm), sentenceScore);
+    }
+
+    /**
+     * Favours the thing the sentence is about over what it does to it.
+     * English puts the subject first, so an early term is usually the
+     * concept being defined ("Mitochondria are often called...") while a
+     * later one is usually the verb or an aside - blanking "generate"
+     * tests nothing worth knowing.
+     */
+    private static double subjectWeight(int firstPosition, int sentenceLength) {
+        if (sentenceLength <= 1) {
+            return 1.0;
+        }
+        double relative = (double) firstPosition / (sentenceLength - 1);
+        return 1.0 + 1.2 * (1.0 - relative);
+    }
+
+    /**
+     * Demotes describing words. A cloze question should hide the thing
+     * ("cellular _____" -> respiration), not how it is described
+     * ("_____ respiration" -> cellular), and English marks most describing
+     * words by their ending. Cheaper and steadier than guessing at grammar
+     * from neighbouring words, which mistakes "respiration is the pathway"
+     * for a compound term.
+     */
+    private static double adjectivePenalty(String term) {
+        for (String suffix : ADJECTIVE_SUFFIXES) {
+            if (term.endsWith(suffix)) {
+                return 0.5;
+            }
+        }
+        return 1.0;
+    }
+
+    /**
+     * A word capitalised away from the start of a sentence is a name or a
+     * technical term ("Krebs", "Napoleon", "ATP") - exactly what is worth
+     * recalling.
+     */
+    private static double properNounWeight(String sentence, String lowerTerm) {
+        Matcher m = Pattern.compile("(?<=[^.!?]\\s)\\b" + Pattern.quote(lowerTerm) + "\\b",
+                Pattern.CASE_INSENSITIVE).matcher(sentence);
+        while (m.find()) {
+            if (Character.isUpperCase(sentence.charAt(m.start()))) {
+                return 1.35;
+            }
+        }
+        return 1.0;
     }
 
     /** Round-robin over documents, best-scored candidate first within each. */

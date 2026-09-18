@@ -31,8 +31,16 @@ public final class ExtractiveSummarizer {
         this.model = model;
     }
 
+    /** A study summary is about the subject, so course admin and chapter intros are left out - unless that is all there is. */
+    private static List<SourceSentence> summarizable(List<SourceSentence> sentences) {
+        List<SourceSentence> content = sentences.stream()
+                .filter(s -> StudyContentFilter.isTestableContent(s.text()))
+                .toList();
+        return content.isEmpty() ? sentences : content;
+    }
+
     public AnswerResult summarize(List<GroundedSource> sources) {
-        List<SourceSentence> sentences = SentenceCorpus.from(sources, MAX_CANDIDATES);
+        List<SourceSentence> sentences = summarizable(SentenceCorpus.from(sources, MAX_CANDIDATES));
         if (sentences.isEmpty()) {
             return new AnswerResult("The selected documents contain no readable sentences to summarize.", List.of());
         }
