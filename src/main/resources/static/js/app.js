@@ -355,93 +355,147 @@ function renderQuizDetail(quiz) {
     container.appendChild(heading);
 
     quiz.questions.forEach((question, index) => {
-        const card = document.createElement("div");
-        card.className = "question-card";
+        container.appendChild(renderQuestionCard(quiz, question, index));
+    });
+}
 
-        const title = document.createElement("h4");
-        title.textContent = `${index + 1}. ${question.prompt}`;
-        card.appendChild(title);
+function renderQuestionCard(quiz, question, index) {
+    const card = document.createElement("div");
+    card.className = "question-card";
 
-        if (question.type === "MULTIPLE_CHOICE" && question.choices && question.choices.length) {
-            const ul = document.createElement("ul");
-            ul.className = "choice-list";
-            for (const choice of question.choices) {
-                const li = document.createElement("li");
-                li.textContent = choice;
-                li.addEventListener("click", () => {
-                    ul.querySelectorAll("li").forEach((n) => n.classList.remove("correct", "incorrect"));
-                    li.classList.add(choice === question.answer ? "correct" : "incorrect");
-                    if (choice !== question.answer) {
-                        const correctLi = Array.from(ul.children).find((n) => n.textContent === question.answer);
-                        if (correctLi) correctLi.classList.add("correct");
-                    }
-                });
-                ul.appendChild(li);
-            }
-            card.appendChild(ul);
-        } else if (question.type === "FLASHCARD") {
-            const revealBtn = document.createElement("button");
-            revealBtn.className = "reveal-btn";
-            revealBtn.textContent = "Show answer";
-            const answerBox = document.createElement("div");
-            answerBox.className = "answer-box";
-            answerBox.hidden = true;
-            answerBox.textContent = question.answer;
-            revealBtn.addEventListener("click", () => {
-                answerBox.hidden = !answerBox.hidden;
-            });
-            card.append(revealBtn, answerBox);
-        } else {
-            const row = document.createElement("div");
-            row.className = "short-answer-row";
-            const input = document.createElement("input");
-            input.type = "text";
-            input.placeholder = "Your answer";
-            const gradeBtn = document.createElement("button");
-            gradeBtn.className = "btn btn-primary";
-            gradeBtn.textContent = "Check";
-            const resultBox = document.createElement("div");
-            gradeBtn.addEventListener("click", async () => {
-                if (!input.value.trim()) return;
-                gradeBtn.disabled = true;
-                gradeBtn.textContent = "Checking...";
-                try {
-                    const result = await api(`/quizzes/${quiz.id}/questions/${question.id}/grade`, {
-                        method: "POST",
-                        body: JSON.stringify({ studentAnswer: input.value.trim() }),
-                    });
-                    resultBox.className = `grade-result ${result.correct ? "correct" : "incorrect"}`;
-                    resultBox.textContent = result.feedback;
-                } catch (err) {
-                    resultBox.className = "grade-result incorrect";
-                    resultBox.textContent = `Could not grade: ${err.message}`;
-                } finally {
-                    gradeBtn.disabled = false;
-                    gradeBtn.textContent = "Check";
+    const title = document.createElement("h4");
+    title.textContent = `${index + 1}. ${question.prompt}`;
+    card.appendChild(title);
+
+    // The answer and the explanation stay hidden until asked for: the
+    // explanation quotes the source sentence, so showing it would hand over
+    // the answer before the student has tried.
+    const answerPanel = document.createElement("div");
+    answerPanel.className = "answer-panel";
+    answerPanel.hidden = true;
+
+    const answerLine = document.createElement("div");
+    answerLine.className = "answer-box";
+    answerLine.innerHTML = `<span class="answer-label">answer</span>`;
+    answerLine.append(document.createTextNode(question.answer));
+    answerPanel.appendChild(answerLine);
+
+    if (question.explanation) {
+        const explanation = document.createElement("div");
+        explanation.className = "answer-box explanation";
+        explanation.textContent = question.explanation;
+        answerPanel.appendChild(explanation);
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "answer-actions";
+
+    let choiceList = null;
+    if (question.type === "MULTIPLE_CHOICE" && question.choices && question.choices.length) {
+        choiceList = document.createElement("ul");
+        choiceList.className = "choice-list";
+        for (const choice of question.choices) {
+            const li = document.createElement("li");
+            li.textContent = choice;
+            li.addEventListener("click", () => {
+                clearChoiceMarks(choiceList);
+                li.classList.add(choice === question.answer ? "correct" : "incorrect");
+                if (choice !== question.answer) {
+                    markCorrectChoice(choiceList, question.answer);
                 }
             });
-            row.append(input, gradeBtn);
-            card.append(row, resultBox);
+            choiceList.appendChild(li);
         }
+        card.appendChild(choiceList);
+    } else if (question.type === "SHORT_ANSWER") {
+        card.appendChild(shortAnswerRow(quiz, question, actions));
+    }
 
-        if (question.explanation) {
-            const exp = document.createElement("div");
-            exp.className = "answer-box";
-            exp.textContent = question.explanation;
-            card.appendChild(exp);
+    const revealBtn = document.createElement("button");
+    revealBtn.className = "reveal-btn";
+    revealBtn.textContent = "show answer";
+    revealBtn.addEventListener("click", () => {
+        const showing = answerPanel.hidden;
+        answerPanel.hidden = !showing;
+        revealBtn.textContent = showing ? "hide answer" : "show answer";
+        revealBtn.classList.toggle("revealed", showing);
+        if (choiceList) {
+            clearChoiceMarks(choiceList);
+            if (showing) {
+                markCorrectChoice(choiceList, question.answer);
+            }
         }
-
-        if (question.sourceFilename) {
-            const tag = document.createElement("div");
-            tag.className = "source-tag";
-            tag.textContent = question.sourcePage
-                ? `Source: ${question.sourceFilename} — p.${question.sourcePage}`
-                : `Source: ${question.sourceFilename}`;
-            card.appendChild(tag);
-        }
-
-        container.appendChild(card);
     });
+    actions.prepend(revealBtn);
+    card.append(actions, answerPanel);
+
+    if (question.sourceFilename) {
+        const tag = document.createElement("div");
+        tag.className = "source-tag";
+        tag.textContent = question.sourcePage
+            ? `Source: ${question.sourceFilename} — p.${question.sourcePage}`
+            : `Source: ${question.sourceFilename}`;
+        card.appendChild(tag);
+    }
+    return card;
+}
+
+function clearChoiceMarks(choiceList) {
+    choiceList.querySelectorAll("li").forEach((n) => n.classList.remove("correct", "incorrect"));
+}
+
+function markCorrectChoice(choiceList, answer) {
+    const correct = Array.from(choiceList.children).find((n) => n.textContent === answer);
+    if (correct) correct.classList.add("correct");
+}
+
+/** Type-your-answer row; its "Check" button grades against the reference answer. */
+function shortAnswerRow(quiz, question, actions) {
+    const row = document.createElement("div");
+    row.className = "short-answer-row";
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = "Your answer";
+
+    const gradeBtn = document.createElement("button");
+    gradeBtn.className = "btn btn-primary";
+    gradeBtn.textContent = "check";
+
+    const resultBox = document.createElement("div");
+
+    const check = async () => {
+        if (!input.value.trim()) return;
+        gradeBtn.disabled = true;
+        gradeBtn.textContent = "checking...";
+        try {
+            const result = await api(`/quizzes/${quiz.id}/questions/${question.id}/grade`, {
+                method: "POST",
+                body: JSON.stringify({ studentAnswer: input.value.trim() }),
+            });
+            resultBox.className = `grade-result ${result.correct ? "correct" : "incorrect"}`;
+            resultBox.textContent = result.feedback;
+        } catch (err) {
+            resultBox.className = "grade-result incorrect";
+            resultBox.textContent = `Could not grade: ${err.message}`;
+        } finally {
+            gradeBtn.disabled = false;
+            gradeBtn.textContent = "check";
+        }
+    };
+
+    gradeBtn.addEventListener("click", check);
+    input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            check();
+        }
+    });
+
+    row.append(input, gradeBtn);
+    const wrapper = document.createElement("div");
+    wrapper.append(row, resultBox);
+    return wrapper;
 }
 
 // ---------- Summaries ----------

@@ -723,32 +723,76 @@ select option:checked {
     color: var(--coral);
 }
 
+.answer-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+
 .reveal-btn {
     all: unset;
     cursor: pointer;
     font-family: var(--font-mono);
     font-size: 12px;
     letter-spacing: 0.08em;
-    padding: 6px 12px;
+    padding: 7px 14px;
     border: 1px solid var(--line);
     border-radius: 4px;
     color: var(--slate-light);
     transition: all 0.2s var(--ease);
 }
 
+.reveal-btn::before {
+    content: "\2192  ";
+    color: var(--mint);
+}
+
 .reveal-btn:hover {
     color: var(--mint);
     border-color: var(--mint);
+    background: var(--mint-tint);
+}
+
+.reveal-btn.revealed {
+    color: var(--mint);
+    border-color: rgba(100, 255, 218, 0.35);
+    background: var(--mint-tint);
+}
+
+.reveal-btn.revealed::before {
+    content: "\2193  ";
+}
+
+.answer-panel {
+    animation: rise 0.25s var(--ease) both;
 }
 
 .answer-box {
     margin-top: 10px;
     padding: 10px 14px;
     background: rgba(255, 255, 255, 0.03);
-    border-left: 2px solid var(--lavender);
+    border-left: 2px solid var(--mint);
     border-radius: 0 var(--radius) var(--radius) 0;
     font-size: 16.5px;
+    color: var(--text-bright);
+}
+
+.answer-box.explanation {
+    border-left-color: var(--lavender);
     color: var(--slate-light);
+    font-size: 15.5px;
+}
+
+.answer-label {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--mint);
+    margin-bottom: 4px;
 }
 
 .source-tag {
