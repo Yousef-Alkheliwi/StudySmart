@@ -27,11 +27,15 @@ public final class SentenceCorpus {
         int position = 0;
 
         for (GroundedSource source : sources) {
-            List<String> pieces = SentenceSplitter.split(source.chunk().content());
+            String content = source.chunk().content();
+            // Slides and bullet notes end lines without punctuation as a matter of
+            // course, so the truncation test only applies to flowing prose.
+            boolean prose = content.lines().filter(l -> !l.isBlank()).count() <= 2;
+            List<String> pieces = SentenceSplitter.split(content);
             String previous = null;
             for (int i = 0; i < pieces.size(); i++) {
                 String sentence = pieces.get(i);
-                if (isChunkBoundaryFragment(sentence, i, pieces.size())) {
+                if (isChunkBoundaryFragment(sentence, i, pieces.size(), prose)) {
                     // Skip it, and don't offer half a thought as the next
                     // sentence's antecedent either.
                     previous = null;
@@ -52,11 +56,11 @@ public final class SentenceCorpus {
         return out;
     }
 
-    private static boolean isChunkBoundaryFragment(String sentence, int index, int pieceCount) {
+    private static boolean isChunkBoundaryFragment(String sentence, int index, int pieceCount, boolean prose) {
         if (!SentenceSplitter.startsLikeSentence(sentence)) {
             return true;
         }
         boolean isTrailingPiece = index == pieceCount - 1 && pieceCount > 1;
-        return isTrailingPiece && !SentenceSplitter.endsLikeSentence(sentence);
+        return prose && isTrailingPiece && !SentenceSplitter.endsLikeSentence(sentence);
     }
 }

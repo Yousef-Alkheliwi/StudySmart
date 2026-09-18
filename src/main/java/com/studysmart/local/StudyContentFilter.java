@@ -62,6 +62,20 @@ public final class StudyContentFilter {
                     + "|\\bwelcome to\\b",
             Pattern.CASE_INSENSITIVE);
 
+    /**
+     * A lecturer's personal aside - the coffee-preference slide that makes
+     * a point about trade-offs. Worth reading, not worth being tested on.
+     */
+    /**
+     * A course code ("CPSC 322", "BIO101") marks the title slide or a
+     * sentence about the syllabus - "In CPSC 322 we introduce both
+     * families" teaches nothing about the subject itself.
+     */
+    private static final Pattern COURSE_CODE = Pattern.compile("\\b[A-Z]{2,4}\\s?\\d{3}\\b");
+
+    private static final Pattern PERSONAL_ASIDE = Pattern.compile(
+            "^\\s*I\\b|\\bI (like|think|prefer|love|hate|guess|believe|find|would say)\\b");
+
     private StudyContentFilter() {
     }
 
@@ -75,6 +89,8 @@ public final class StudyContentFilter {
                 && !CONTACT_DETAILS.matcher(s).find()
                 && !ADMINISTRATIVE.matcher(s).find()
                 && !COURSE_META.matcher(s).find()
+                && !PERSONAL_ASIDE.matcher(s).find()
+                && !COURSE_CODE.matcher(s).find()
                 && !isMostlyNumbersAndDates(s);
     }
 

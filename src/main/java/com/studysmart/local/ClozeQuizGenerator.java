@@ -53,9 +53,10 @@ public final class ClozeQuizGenerator {
             "thing", "things", "term", "terms", "level", "levels", "amount", "order", "group", "groups",
             "area", "areas", "information", "material", "materials", "example", "examples", "study", "studies");
 
-    /** Endings that usually mark a describing word rather than a thing. */
-    private static final List<String> ADJECTIVE_SUFFIXES = List.of(
-            "al", "ar", "ic", "ive", "ous", "ful", "less", "able", "ible", "ed", "ing");
+    /** Endings that usually mark a describing word rather than a thing - "-ly" covers adverbs, which make the emptiest blanks of all. */
+    private static final List<String> DESCRIBING_SUFFIXES = List.of(
+            "al", "ar", "ic", "ive", "ous", "ful", "less", "able", "ible", "ed", "ing", "ly",
+            "ate", "ize", "ise", "ify");
 
     private ClozeQuizGenerator() {
     }
@@ -78,8 +79,9 @@ public final class ClozeQuizGenerator {
 
         List<Candidate> candidates = new ArrayList<>();
         for (int i = 0; i < sentences.size(); i++) {
-            int wordCount = sentences.get(i).text().trim().split("\\s+").length;
-            if (wordCount < MIN_WORDS || wordCount > MAX_WORDS) {
+            String text = sentences.get(i).text();
+            int wordCount = text.trim().split("\\s+").length;
+            if (wordCount < MIN_WORDS || wordCount > MAX_WORDS || endsMidPhrase(text)) {
                 continue;
             }
             List<String> tokens = tokensPerSentence.get(i);
@@ -105,6 +107,21 @@ public final class ClozeQuizGenerator {
         }
         return questions;
     }
+
+    /**
+     * A line that stops on a joining word ("...the states of the world or")
+     * is half a thought the slide continued elsewhere; a question built on
+     * it reads as nonsense.
+     */
+    private static boolean endsMidPhrase(String sentence) {
+        String[] words = sentence.trim().split("\\s+");
+        String last = words[words.length - 1].toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}]", "");
+        return DANGLING_ENDINGS.contains(last);
+    }
+
+    private static final Set<String> DANGLING_ENDINGS = Set.of(
+            "and", "or", "but", "with", "of", "the", "a", "an", "to", "for", "in", "on", "at", "by",
+            "from", "that", "which", "as", "is", "are", "was", "were", "be", "if", "when", "than", "into");
 
     /**
      * Drops the instructor's name, office hours and "in this chapter we
@@ -141,7 +158,7 @@ public final class ClozeQuizGenerator {
             double score = e.getValue() * Math.log((double) total / frequency) * (term.length() >= 6 ? 1.2 : 1.0);
             score *= subjectWeight(firstPosition.get(term), tokens.size());
             score *= properNounWeight(sentence.text(), term);
-            score *= adjectivePenalty(term);
+            score *= describingWordPenalty(term);
             if (score > bestScore) {
                 bestScore = score;
                 bestTerm = term;
@@ -172,13 +189,15 @@ public final class ClozeQuizGenerator {
     /**
      * Demotes describing words. A cloze question should hide the thing
      * ("cellular _____" -> respiration), not how it is described
-     * ("_____ respiration" -> cellular), and English marks most describing
-     * words by their ending. Cheaper and steadier than guessing at grammar
+     * ("_____ respiration" -> cellular) and certainly not how something is
+     * done ("AI is _____ building bridges" -> actually). English marks most
+     * describing words by their ending, and most verbs likewise
+     * ("enumerate", "specify"). Cheaper and steadier than guessing at grammar
      * from neighbouring words, which mistakes "respiration is the pathway"
      * for a compound term.
      */
-    private static double adjectivePenalty(String term) {
-        for (String suffix : ADJECTIVE_SUFFIXES) {
+    private static double describingWordPenalty(String term) {
+        for (String suffix : DESCRIBING_SUFFIXES) {
             if (term.endsWith(suffix)) {
                 return 0.5;
             }

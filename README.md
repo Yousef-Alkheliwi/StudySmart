@@ -75,6 +75,7 @@ and ask it something. No API key, no account, nothing to sign up for.
 |---|---|
 | Text extraction | Apache PDFBox, page-by-page, so every chunk keeps its page number |
 | Chunking | A word-count sliding window (`Chunker`) that snaps its cut points to paragraph breaks, with configurable overlap |
+| Sentence splitting | `SentenceSplitter` reads prose and slides differently: hard-wrapped lines are stitched back together, while a slide's titles and bullets stay separate lines instead of collapsing into one run-on sentence |
 | Keyword search | Apache Lucene, BM25, one physical index per project; English analysis (stemming + stopword removal) so "cells" matches "cell" and a question's grammar doesn't outvote its subject |
 | Semantic search | `all-MiniLM-L6-v2` sentence embeddings run locally via ONNX Runtime (Deep Java Library); vectors stored in SQLite, exact cosine scan per project (`VectorIndex`) |
 | Ranking | Reciprocal Rank Fusion of the two result lists (`RankFusion`) |
