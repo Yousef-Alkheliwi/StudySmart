@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: studysmart
+  servlet:
+    multipart:
+      max-file-size: 40MB
+      max-request-size: 40MB
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+  datasource:
+    url: jdbc:sqlite:${studysmart.data-dir}/studysmart.db?foreign_keys=on&busy_timeout=10000
+    driver-class-name: org.sqlite.JDBC
+    hikari:
+      # SQLite allows only one writer at a time; a pool larger than 1 just
+      # trades lock contention inside the app for lock contention in SQLite
+      # itself ("database is locked" errors under any concurrent write).
+      maximum-pool-size: 1
+      connection-timeout: 15000
+
+server:
+  port: ${PORT:3939}
+
+studysmart:
+  data-dir: ${STUDYSMART_DATA_DIR:./data}
+  embeddings:
+    # local = ONNX MiniLM sentence embeddings (downloaded once into the data dir), hashing = no download, off = BM25 only.
+    provider: ${STUDYSMART_EMBEDDINGS:local}
+  retrieval:
+    top-k: ${STUDYSMART_TOP_K:8}
+  chunking:
+    target-words: 180
+    overlap-words: 30
+
+logging:
+  level:
+    root: INFO
+    com.studysmart: INFO
+    ai.djl: WARN

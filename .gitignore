@@ -1,0 +1,19 @@
+# Build output
+target/
+
+# Runtime data: SQLite DB, uploads, search indexes, vectors, cached embedding model
+data/
+data-*/
+*.db
+
+# Local config and secrets
+.env
+.env.local
+
+# Editor / tooling
+.idea/
+*.iml
+.vscode/
+.claude/
+.DS_Store
+*.log

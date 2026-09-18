@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>StudySmart</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=NTR&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+    <div id="app" class="app">
+        <aside class="sidebar">
+            <a class="brand" href="/">
+                <span class="brand-mark">S</span>
+                <span class="brand-name">study<em>smart</em></span>
+            </a>
+
+            <nav class="nav" id="section-nav">
+                <button class="tab-btn active" data-tab="chat"><span class="slash">/</span> chat</button>
+                <button class="tab-btn" data-tab="documents"><span class="slash">/</span> documents</button>
+                <button class="tab-btn" data-tab="quizzes"><span class="slash">/</span> quizzes</button>
+                <button class="tab-btn" data-tab="summaries"><span class="slash">/</span> summaries</button>
+            </nav>
+
+            <div class="sidebar-section">
+                <div class="sidebar-heading">
+                    <span>projects</span>
+                    <button id="new-project-btn" class="icon-btn" title="New project">+</button>
+                </div>
+                <ul id="project-list" class="project-list"></ul>
+            </div>
+
+            <div class="sidebar-section" id="session-section" hidden>
+                <div class="sidebar-heading">
+                    <span>chats</span>
+                    <button id="new-session-btn" class="icon-btn" title="New chat">+</button>
+                </div>
+                <ul id="session-list" class="session-list"></ul>
+            </div>
+
+            <div class="sidebar-footer" id="ai-status" title="Everything runs on this machine">
+                checking ai engine…
+            </div>
+        </aside>
+
+        <main class="main" id="main" hidden>
+            <header class="main-header">
+                <div>
+                    <p class="eyebrow">project</p>
+                    <h1 id="project-name">Project</h1>
+                    <p id="project-description" class="muted"></p>
+                </div>
+                <button id="delete-project-btn" class="btn btn-ghost btn-danger">delete project</button>
+            </header>
+
+            <section class="tab-panel" id="tab-chat">
+                <div class="section-title"><span class="num">01.</span><h2>ask your material</h2><span class="rule"></span></div>
+                <div class="chat-column">
+                    <div id="chat-messages" class="chat-messages">
+                        <p class="empty-hint">Ask a question about this project's documents. Every answer cites the exact source.</p>
+                    </div>
+                    <form id="ask-form" class="ask-form">
+                        <input id="ask-input" type="text" placeholder="e.g. how does the Krebs cycle produce ATP?" autocomplete="off" />
+                        <button type="submit" class="btn btn-primary">ask</button>
+                    </form>
+                </div>
+            </section>
+
+            <section class="tab-panel" id="tab-documents" hidden>
+                <div class="section-title"><span class="num">02.</span><h2>documents</h2><span class="rule"></span></div>
+                <form id="upload-form" class="upload-form">
+                    <label class="file-label" for="upload-input">
+                        <span class="file-name" id="upload-name">choose a PDF, .txt or .md file</span>
+                        <input id="upload-input" type="file" accept=".pdf,.txt,.md,.markdown" />
+                    </label>
+                    <button type="submit" class="btn btn-primary">upload</button>
+                </form>
+                <ul id="document-list" class="document-list"></ul>
+            </section>
+
+            <section class="tab-panel" id="tab-quizzes" hidden>
+                <div class="section-title"><span class="num">03.</span><h2>quizzes</h2><span class="rule"></span></div>
+                <form id="quiz-form" class="quiz-form">
+                    <div class="quiz-form-row">
+                        <label>questions
+                            <input id="quiz-count" type="number" min="1" max="20" value="5" />
+                        </label>
+                        <label class="grow">documents <span class="hint">(none selected = whole project)</span>
+                            <select id="quiz-documents" multiple></select>
+                        </label>
+                        <button type="submit" class="btn btn-primary">generate quiz</button>
+                    </div>
+                </form>
+                <div id="quiz-list" class="quiz-list"></div>
+                <div id="quiz-detail" class="quiz-detail"></div>
+            </section>
+
+            <section class="tab-panel" id="tab-summaries" hidden>
+                <div class="section-title"><span class="num">04.</span><h2>summaries</h2><span class="rule"></span></div>
+                <form id="summary-form" class="summary-form">
+                    <label class="grow">documents to summarize
+                        <select id="summary-documents" multiple></select>
+                    </label>
+                    <button type="submit" class="btn btn-primary">summarize</button>
+                </form>
+                <div id="summary-list" class="summary-list"></div>
+            </section>
+        </main>
+
+        <div class="main hero" id="empty-state">
+            <p class="eyebrow">hi, welcome to</p>
+            <h1 class="hero-title">study<span class="accent">smart</span><span class="cursor">|</span></h1>
+            <p class="hero-sub">Your notes, papers and lecture slides — searched semantically, answered with citations, turned into quizzes. All on this machine.</p>
+            <div class="hero-actions">
+                <button class="btn btn-primary" id="hero-new-project">create a project</button>
+                <span class="hero-hint">or pick one on the left</span>
+            </div>
+            <ul class="hero-points">
+                <li><span class="slash">/</span> answers cite the exact document and page</li>
+                <li><span class="slash">/</span> keyword + semantic search, fused</li>
+                <li><span class="slash">/</span> quizzes, flashcards and summaries from your own material</li>
+                <li><span class="slash">/</span> every course kept separate</li>
+            </ul>
+        </div>
+    </div>
+
+    <script type="module" src="/js/app.js"></script>
+</body>
+</html>
