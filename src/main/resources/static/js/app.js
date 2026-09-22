@@ -66,8 +66,25 @@ async function selectProject(projectId) {
     el("project-description").textContent = project.description || "";
 
     renderProjectList();
-    await Promise.all([loadSessions(), loadDocuments()]);
+    // Anything on screen belongs to the project we are leaving; clear it before
+    // the new one loads so no course ever shows another course's material.
+    clearProjectViews();
+    // Land on chat before awaiting anything: doing it afterwards yanked the
+    // user back here if they picked a different tab while the project loaded.
     switchTab("chat");
+    await Promise.all([loadSessions(), loadDocuments()]);
+}
+
+/** Empties every panel that renders one project's content. */
+function clearProjectViews() {
+    el("chat-messages").innerHTML = "";
+    el("quiz-list").innerHTML = "";
+    el("quiz-detail").innerHTML = "";
+    el("summary-list").innerHTML = "";
+    const summaryDetail = el("summary-detail");
+    if (summaryDetail) summaryDetail.innerHTML = "";
+    state.quizzes = [];
+    state.summaries = [];
 }
 
 async function createProject() {
@@ -87,6 +104,7 @@ async function deleteCurrentProject() {
     if (!confirm("Delete this project and everything in it? This cannot be undone.")) return;
     await api(`/projects/${state.currentProjectId}`, { method: "DELETE" });
     state.currentProjectId = null;
+    clearProjectViews();
     el("main").hidden = true;
     el("session-section").hidden = true;
     el("empty-state").hidden = false;
@@ -308,7 +326,10 @@ function pollDocumentsUntilSettled() {
 // ---------- Quizzes ----------
 
 async function loadQuizzes() {
-    state.quizzes = await api(`/projects/${state.currentProjectId}/quizzes`);
+    const projectId = state.currentProjectId;
+    const quizzes = await api(`/projects/${projectId}/quizzes`);
+    if (projectId !== state.currentProjectId) return;   // the user moved on while this was in flight
+    state.quizzes = quizzes;
     const list = el("quiz-list");
     list.innerHTML = "";
     for (const quiz of state.quizzes) {
@@ -501,7 +522,10 @@ function shortAnswerRow(quiz, question, actions) {
 // ---------- Summaries ----------
 
 async function loadSummaries() {
-    state.summaries = await api(`/projects/${state.currentProjectId}/summaries`);
+    const projectId = state.currentProjectId;
+    const summaries = await api(`/projects/${projectId}/summaries`);
+    if (projectId !== state.currentProjectId) return;   // the user moved on while this was in flight
+    state.summaries = summaries;
     const list = el("summary-list");
     list.innerHTML = "";
     for (const summary of state.summaries) {

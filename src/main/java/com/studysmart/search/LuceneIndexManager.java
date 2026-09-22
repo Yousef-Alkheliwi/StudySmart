@@ -93,8 +93,8 @@ public class LuceneIndexManager {
         synchronized (lockFor(projectId)) {
             Path path = indexPath(projectId);
             Files.createDirectories(path);
-            Analyzer analyzer = analyzer();
-            try (FSDirectory dir = FSDirectory.open(path);
+            try (Analyzer analyzer = analyzer();
+                 FSDirectory dir = FSDirectory.open(path);
                  IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(analyzer))) {
                 for (Chunk chunk : chunks) {
                     Document doc = new Document();
@@ -130,8 +130,8 @@ public class LuceneIndexManager {
             if (!Files.isDirectory(path)) {
                 return;
             }
-            Analyzer analyzer = analyzer();
-            try (FSDirectory dir = FSDirectory.open(path);
+            try (Analyzer analyzer = analyzer();
+                 FSDirectory dir = FSDirectory.open(path);
                  IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(analyzer))) {
                 writer.deleteDocuments(new Term(FIELD_DOCUMENT_ID, documentId));
                 writer.commit();
@@ -156,9 +156,11 @@ public class LuceneIndexManager {
                 }
             } catch (IOException | UncheckedIOException e) {
                 log.warn("Failed to delete Lucene index for project {}", projectId, e);
-            } finally {
-                projectLocks.remove(projectId);
             }
+            // The lock entry stays: dropping it here would let a thread waiting
+            // on this project take a brand-new lock object and index into the
+            // directory being deleted. One small map entry per project is a
+            // cheaper price than that race.
         }
     }
 
@@ -168,8 +170,8 @@ public class LuceneIndexManager {
             return List.of();
         }
 
-        Analyzer analyzer = analyzer();
-        try (FSDirectory dir = FSDirectory.open(path);
+        try (Analyzer analyzer = analyzer();
+             FSDirectory dir = FSDirectory.open(path);
              DirectoryReader reader = DirectoryReader.open(dir)) {
             IndexSearcher searcher = new IndexSearcher(reader);
             searcher.setSimilarity(new BM25Similarity());

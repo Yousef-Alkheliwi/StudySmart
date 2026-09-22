@@ -116,6 +116,7 @@ public class DocumentIngestionService {
             log.info("Ingested {} ({} chunks)", document.filename(), chunks.size());
         } catch (Exception e) {
             log.error("Ingestion failed for document {} ({})", document.id(), document.filename(), e);
+            discardPartialWork(document);
             documentRepository.updateStatus(document.id(), DocumentStatus.FAILED, safeMessage(e));
         }
     }
@@ -129,6 +130,25 @@ public class DocumentIngestionService {
         List<float[]> vectors = model.get().embedAll(chunks.stream().map(Chunk::content).toList());
         embeddingRepository.saveAll(projectId, model.get().name(), chunks.stream().map(Chunk::id).toList(), vectors);
         vectorIndex.invalidate(projectId);
+    }
+
+    /**
+     * Ingestion writes chunks, then indexes them, then embeds them. If a later
+     * step fails the earlier ones have already landed, leaving a failed
+     * document's text searchable and quizzable. Roll it back so a failure
+     * means nothing was ingested.
+     */
+    private void discardPartialWork(StudyDocument document) {
+        try {
+            int removed = chunkRepository.deleteByDocument(document.id());
+            indexManager.deleteDocument(document.projectId(), document.id());
+            vectorIndex.invalidate(document.projectId());
+            if (removed > 0) {
+                log.info("Rolled back {} partially ingested chunks of {}", removed, document.filename());
+            }
+        } catch (Exception cleanupFailure) {
+            log.warn("Could not roll back partial ingestion of {}", document.filename(), cleanupFailure);
+        }
     }
 
     private String safeMessage(Exception e) {

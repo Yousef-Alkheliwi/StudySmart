@@ -66,8 +66,14 @@ public class ChunkRepository {
         return jdbc.query("SELECT * FROM chunks WHERE document_id = ? ORDER BY ordinal", MAPPER, documentId);
     }
 
+    /** Only chunks of documents that finished ingesting: a failed or half-processed file must not feed quizzes or summaries. */
     public List<Chunk> findByProject(String projectId) {
-        return jdbc.query("SELECT * FROM chunks WHERE project_id = ? ORDER BY document_id, ordinal", MAPPER, projectId);
+        return jdbc.query("SELECT c.* FROM chunks c JOIN documents d ON d.id = c.document_id "
+                + "WHERE c.project_id = ? AND d.status = 'READY' ORDER BY c.document_id, c.ordinal", MAPPER, projectId);
+    }
+
+    public int deleteByDocument(String documentId) {
+        return jdbc.update("DELETE FROM chunks WHERE document_id = ?", documentId);
     }
 
     public List<Chunk> findByDocuments(List<String> documentIds) {
