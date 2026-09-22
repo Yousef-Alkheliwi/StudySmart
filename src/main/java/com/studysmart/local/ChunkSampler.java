@@ -17,13 +17,26 @@ public final class ChunkSampler {
     }
 
     public static List<Chunk> sample(List<Chunk> chunks, int max) {
+        if (max <= 0) {
+            return List.of();
+        }
         if (chunks.size() <= max) {
             return chunks;
         }
-        int step = (int) Math.ceil((double) chunks.size() / max);
-        List<Chunk> sampled = new ArrayList<>();
-        for (int i = 0; i < chunks.size() && sampled.size() < max; i += step) {
-            sampled.add(chunks.get(i));
+        if (max == 1) {
+            return List.of(chunks.get(0));
+        }
+        // Spread the picks across the whole list rather than stepping by a
+        // whole number: a whole-number step of 2 over 61 chunks with room for
+        // 60 threw away half the material for the sake of one chunk too many.
+        List<Chunk> sampled = new ArrayList<>(max);
+        int lastIndex = -1;
+        for (int i = 0; i < max; i++) {
+            int index = (int) Math.round((double) i * (chunks.size() - 1) / (max - 1));
+            if (index > lastIndex) {
+                sampled.add(chunks.get(index));
+                lastIndex = index;
+            }
         }
         return sampled;
     }

@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /** Summarizes a chosen set of documents with the on-device extractive summarizer. */
@@ -43,13 +42,12 @@ public class SummaryService {
         if (documentIds.isEmpty()) {
             throw new ValidationException("Select at least one document to summarize.");
         }
-        List<Chunk> chunks = chunkRepository.findByDocuments(documentIds);
+        Map<String, StudyDocument> documentsById = ProjectDocuments.require(documentRepository, projectId, documentIds);
+
+        List<Chunk> chunks = chunkRepository.findByDocuments(projectId, documentIds);
         if (chunks.isEmpty()) {
             throw new ValidationException("The selected documents have no processed material yet - wait for ingestion to finish.");
         }
-
-        Map<String, StudyDocument> documentsById = documentRepository.findByIds(documentIds).stream()
-                .collect(Collectors.toMap(StudyDocument::id, Function.identity()));
         List<GroundedSource> sources = ChunkSampler.sample(chunks, MAX_SUMMARY_CHUNKS).stream()
                 .filter(chunk -> documentsById.containsKey(chunk.documentId()))
                 .map(chunk -> new GroundedSource(chunk, documentsById.get(chunk.documentId())))

@@ -36,9 +36,12 @@ public class QuizGenerationService {
     }
 
     public Quiz generate(String projectId, List<String> documentIds, int questionCount, List<QuestionType> types) {
+        if (!documentIds.isEmpty()) {
+            ProjectDocuments.require(documentRepository, projectId, documentIds);
+        }
         List<Chunk> chunks = documentIds.isEmpty()
                 ? chunkRepository.findByProject(projectId)
-                : chunkRepository.findByDocuments(documentIds);
+                : chunkRepository.findByDocuments(projectId, documentIds);
         if (chunks.isEmpty()) {
             throw new ValidationException("No processed material is available yet to build a quiz from.");
         }

@@ -76,13 +76,17 @@ public class ChunkRepository {
         return jdbc.update("DELETE FROM chunks WHERE document_id = ?", documentId);
     }
 
-    public List<Chunk> findByDocuments(List<String> documentIds) {
+    /** Scoped to the project on purpose: a document id from another project must never return rows here. */
+    public List<Chunk> findByDocuments(String projectId, List<String> documentIds) {
         if (documentIds.isEmpty()) {
             return List.of();
         }
         String placeholders = String.join(",", documentIds.stream().map(i -> "?").toList());
-        return jdbc.query("SELECT * FROM chunks WHERE document_id IN (" + placeholders + ") ORDER BY document_id, ordinal",
-                MAPPER, documentIds.toArray());
+        List<Object> args = new java.util.ArrayList<>();
+        args.add(projectId);
+        args.addAll(documentIds);
+        return jdbc.query("SELECT * FROM chunks WHERE project_id = ? AND document_id IN (" + placeholders + ") "
+                + "ORDER BY document_id, ordinal", MAPPER, args.toArray());
     }
 
     /** Chunks of READY documents that have no vector from {@code modelName} yet - what a startup backfill needs to embed. */
