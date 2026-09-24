@@ -77,6 +77,7 @@ async function selectProject(projectId) {
 
 /** Empties every panel that renders one project's content. */
 function clearProjectViews() {
+    stopDocumentPoll();
     el("chat-messages").innerHTML = "";
     el("quiz-list").innerHTML = "";
     el("quiz-detail").innerHTML = "";
@@ -314,13 +315,40 @@ async function uploadDocument(event) {
     pollDocumentsUntilSettled();
 }
 
+let documentPoll = null;
+
+/**
+ * Watches an upload until it finishes processing. It has to stop when the
+ * project is closed or deleted, otherwise it keeps asking for a project that
+ * is no longer there - once every few seconds, for two minutes.
+ */
 function pollDocumentsUntilSettled() {
-    const interval = setInterval(async () => {
-        await loadDocuments();
+    const projectId = state.currentProjectId;
+    stopDocumentPoll();
+
+    const stop = () => stopDocumentPoll();
+    documentPoll = setInterval(async () => {
+        if (state.currentProjectId !== projectId) {
+            stop();
+            return;
+        }
+        try {
+            await loadDocuments();
+        } catch (err) {
+            stop();
+            return;
+        }
         const stillProcessing = state.documents.some((d) => d.status === "PENDING" || d.status === "PROCESSING");
-        if (!stillProcessing) clearInterval(interval);
+        if (!stillProcessing) stop();
     }, 2500);
-    setTimeout(() => clearInterval(interval), 120000);
+    setTimeout(stop, 120000);
+}
+
+function stopDocumentPoll() {
+    if (documentPoll !== null) {
+        clearInterval(documentPoll);
+        documentPoll = null;
+    }
 }
 
 // ---------- Quizzes ----------

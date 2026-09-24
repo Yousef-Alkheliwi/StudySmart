@@ -27,6 +27,8 @@ public class DocumentService {
     private static final Logger log = LoggerFactory.getLogger(DocumentService.class);
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(".pdf", ".txt", ".md", ".markdown");
     private static final long MAX_SIZE_BYTES = 40L * 1024 * 1024;
+    /** Leaves room for the uuid prefix within a filesystem's 255-byte name limit. */
+    private static final int MAX_FILENAME_LENGTH = 120;
 
     private final ProjectService projectService;
     private final DocumentRepository documentRepository;
@@ -110,11 +112,24 @@ public class DocumentService {
         }
     }
 
+    /**
+     * Keeps a readable filename while refusing anything that could escape the
+     * uploads directory. Letters and digits of any script survive: a file
+     * called "\u8bb2\u4e49-\u7b2c\u4e00\u7ae0.txt" used to be stored as "__-___.txt", which then
+     * appeared as the source on every citation drawn from it.
+     */
     private String sanitizeFilename(String raw) {
         String name = (raw == null || raw.isBlank()) ? "upload" : raw;
         // Strip any directory components a browser or client might send.
         name = Path.of(name).getFileName().toString();
-        return name.replaceAll("[^a-zA-Z0-9._\\- ]", "_");
+        name = name.replaceAll("[\\p{Cntrl}\\p{Zl}\\p{Zp}]", "")
+                .replaceAll("[\\\\/:*?\"<>|]", "_")
+                .trim();
+        // "." and ".." name directories rather than files.
+        if (name.isEmpty() || name.chars().allMatch(c -> c == '.')) {
+            name = "upload";
+        }
+        return name.length() > MAX_FILENAME_LENGTH ? name.substring(0, MAX_FILENAME_LENGTH) : name;
     }
 
     private String guessContentType(String lowerFilename) {

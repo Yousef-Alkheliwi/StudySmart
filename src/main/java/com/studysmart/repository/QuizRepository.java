@@ -32,7 +32,7 @@ public class QuizRepository {
 
         jdbc.update(
                 "INSERT INTO quizzes (id, project_id, title, document_ids, created_at) VALUES (?,?,?,?,?)",
-                quizId, projectId, title, writeJson(documentIds), now.toString()
+                quizId, projectId, title, writeJson(documentIds), Timestamps.store(now)
         );
 
         List<QuizQuestion> saved = new ArrayList<>();
@@ -72,7 +72,7 @@ public class QuizRepository {
         return Optional.of(new Quiz(
                 (String) row.get("id"), (String) row.get("project_id"), (String) row.get("title"),
                 readStringList((String) row.get("document_ids")), questions,
-                Instant.parse((String) row.get("created_at"))
+                Timestamps.parse((String) row.get("created_at"))
         ));
     }
 

@@ -27,7 +27,7 @@ public class ChatMessageRepository {
         Instant now = Instant.now();
         jdbc.update(
                 "INSERT INTO chat_messages (id, session_id, role, content, created_at) VALUES (?,?,?,?,?)",
-                id, sessionId, role.name(), content, now.toString()
+                id, sessionId, role.name(), content, Timestamps.store(now)
         );
         List<Citation> saved = citations == null ? List.of() : citations;
         for (Citation c : saved) {
@@ -63,7 +63,7 @@ public class ChatMessageRepository {
                         MessageRole.valueOf(rs.getString("role")),
                         rs.getString("content"),
                         citationsByMessage.getOrDefault(rs.getString("id"), List.of()),
-                        Instant.parse(rs.getString("created_at"))
+                        Timestamps.parse(rs.getString("created_at"))
                 ),
                 sessionId
         );

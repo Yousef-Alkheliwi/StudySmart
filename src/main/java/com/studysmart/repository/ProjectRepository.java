@@ -17,7 +17,7 @@ public class ProjectRepository {
             rs.getString("id"),
             rs.getString("name"),
             rs.getString("description"),
-            Instant.parse(rs.getString("created_at"))
+            Timestamps.parse(rs.getString("created_at"))
     );
 
     private final JdbcTemplate jdbc;
@@ -30,7 +30,7 @@ public class ProjectRepository {
         Project project = new Project(UUID.randomUUID().toString(), name, description, Instant.now());
         jdbc.update(
                 "INSERT INTO projects (id, name, description, created_at) VALUES (?, ?, ?, ?)",
-                project.id(), project.name(), project.description(), project.createdAt().toString()
+                project.id(), project.name(), project.description(), Timestamps.store(project.createdAt())
         );
         return project;
     }

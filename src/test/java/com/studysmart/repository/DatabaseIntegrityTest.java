@@ -48,6 +48,9 @@ class DatabaseIntegrityTest {
     @Autowired
     private ChunkRepository chunkRepository;
 
+    @Autowired
+    private TimestampNormalizer normalizer;
+
     @Test
     void foreignKeyEnforcementIsOnForTheConnectionsTheAppUses() {
         assertThat(jdbc.queryForObject("PRAGMA foreign_keys", Integer.class))
@@ -103,6 +106,33 @@ class DatabaseIntegrityTest {
                 .containsExactly("ready");
 
         jdbc.update("DELETE FROM projects WHERE id = 'p3'");
+    }
+
+    @Test
+    void oldTimestampsAreNormalisedSoRowsComeBackInTheRightOrder() {
+        // Three sessions written the way earlier versions wrote them: same
+        // millisecond, different fraction widths.
+        jdbc.update("INSERT INTO projects (id,name,description,created_at) VALUES ('p4','P',null,?)",
+                "2026-01-01T00:00:00Z");
+        String[][] sessions = {
+                {"s-late", "2026-09-23T10:00:00.123456Z"},
+                {"s-early", "2026-09-23T10:00:00.123Z"},
+                {"s-latest", "2026-09-23T10:00:00.9Z"}};
+        for (String[] session : sessions) {
+            jdbc.update("INSERT INTO chat_sessions (id,project_id,title,created_at,updated_at) VALUES (?,'p4',?,?,?)",
+                    session[0], session[0], session[1], session[1]);
+        }
+
+        normalizer.normalise();
+
+        assertThat(jdbc.queryForList(
+                "SELECT id FROM chat_sessions WHERE project_id='p4' ORDER BY created_at ASC", String.class))
+                .containsExactly("s-early", "s-late", "s-latest");
+        assertThat(jdbc.queryForList(
+                "SELECT length(created_at) FROM chat_sessions WHERE project_id='p4'", Integer.class))
+                .allMatch(length -> length == Timestamps.STORED_LENGTH);
+
+        jdbc.update("DELETE FROM projects WHERE id = 'p4'");
     }
 
     @Test

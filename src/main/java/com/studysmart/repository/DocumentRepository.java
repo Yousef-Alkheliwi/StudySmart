@@ -24,7 +24,7 @@ public class DocumentRepository {
             rs.getString("stored_path"),
             DocumentStatus.valueOf(rs.getString("status")),
             rs.getString("error_message"),
-            Instant.parse(rs.getString("created_at"))
+            Timestamps.parse(rs.getString("created_at"))
     );
 
     private final JdbcTemplate jdbc;
@@ -42,7 +42,7 @@ public class DocumentRepository {
                 "INSERT INTO documents (id, project_id, filename, content_type, size_bytes, page_count, stored_path, status, error_message, created_at) " +
                         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 doc.id(), doc.projectId(), doc.filename(), doc.contentType(), doc.sizeBytes(),
-                doc.pageCount(), doc.storedPath(), doc.status().name(), doc.errorMessage(), doc.createdAt().toString()
+                doc.pageCount(), doc.storedPath(), doc.status().name(), doc.errorMessage(), Timestamps.store(doc.createdAt())
         );
         return doc;
     }

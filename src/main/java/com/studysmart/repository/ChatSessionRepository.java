@@ -17,8 +17,8 @@ public class ChatSessionRepository {
             rs.getString("id"),
             rs.getString("project_id"),
             rs.getString("title"),
-            Instant.parse(rs.getString("created_at")),
-            Instant.parse(rs.getString("updated_at"))
+            Timestamps.parse(rs.getString("created_at")),
+            Timestamps.parse(rs.getString("updated_at"))
     );
 
     private final JdbcTemplate jdbc;
@@ -32,13 +32,13 @@ public class ChatSessionRepository {
         ChatSession session = new ChatSession(UUID.randomUUID().toString(), projectId, title, now, now);
         jdbc.update(
                 "INSERT INTO chat_sessions (id, project_id, title, created_at, updated_at) VALUES (?,?,?,?,?)",
-                session.id(), session.projectId(), session.title(), now.toString(), now.toString()
+                session.id(), session.projectId(), session.title(), Timestamps.store(now), Timestamps.store(now)
         );
         return session;
     }
 
     public void touch(String id) {
-        jdbc.update("UPDATE chat_sessions SET updated_at = ? WHERE id = ?", Instant.now().toString(), id);
+        jdbc.update("UPDATE chat_sessions SET updated_at = ? WHERE id = ?", Timestamps.store(Instant.now()), id);
     }
 
     public List<ChatSession> findByProject(String projectId) {

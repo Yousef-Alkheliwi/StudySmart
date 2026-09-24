@@ -30,7 +30,7 @@ public class SummaryRepository {
         Instant now = Instant.now();
         jdbc.update(
                 "INSERT INTO summaries (id, project_id, title, document_ids, content, created_at) VALUES (?,?,?,?,?,?)",
-                id, projectId, title, writeJson(documentIds), content, now.toString()
+                id, projectId, title, writeJson(documentIds), content, Timestamps.store(now)
         );
         for (Citation c : citations) {
             jdbc.update(
@@ -57,7 +57,7 @@ public class SummaryRepository {
         return Optional.of(new Summary(
                 (String) row.get("id"), (String) row.get("project_id"), (String) row.get("title"),
                 readStringList((String) row.get("document_ids")), (String) row.get("content"), citations,
-                Instant.parse((String) row.get("created_at"))
+                Timestamps.parse((String) row.get("created_at"))
         ));
     }
 
